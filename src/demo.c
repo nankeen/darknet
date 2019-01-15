@@ -190,6 +190,7 @@ void *stream_in_thread(void *ptr)
       }
   }
   fwrite(pipeBuffer, sizeof(unsigned char), im.w*im.h*im.c, pipe);
+  return 0;
 }
 
 void *display_loop(void *ptr)
@@ -257,7 +258,7 @@ void demo(char *cfgfile, char *weightfile, float thresh, int cam_index, const ch
     // Create pipe to ffmpeg
     if (prefix) {
       char command[256];
-      snprintf(command, sizeof(command), "/usr/bin/ffmpeg -f rawvideo -pix_fmt rgb24 -video_size 1280x720 -framerate 30 -i - -f flv %s", prefix);
+      snprintf(command, sizeof(command), "/usr/bin/ffmpeg -f rawvideo -pix_fmt rgb24 -video_size 1280x720 -framerate 30 -i - -f flv rtmp://localhost/processed/%s", prefix);
       pipe = popen(command, "w");
       if (pipe == NULL) {
         perror("Unable to start rebroadcasting");
@@ -277,6 +278,8 @@ void demo(char *cfgfile, char *weightfile, float thresh, int cam_index, const ch
             // char name[256];
             // sprintf(name, "%s_%08d", prefix, count);
             // save_image(buff[(buff_index + 1)%3], name);
+            fps = 1./(what_time_is_it_now() - demo_time);
+            demo_time = what_time_is_it_now();
             stream_in_thread(0);
         }
         pthread_join(fetch_thread, 0);
