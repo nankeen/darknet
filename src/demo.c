@@ -34,6 +34,7 @@ static float *avg;
 static int demo_done = 0;
 static int demo_total = 0;
 double demo_time;
+FILE *pipe = NULL;
 
 detection *get_network_boxes(network *net, int w, int h, float thresh, float hier, int *map, int relative, int *num);
 
@@ -170,6 +171,27 @@ void *display_in_thread(void *ptr)
     return 0;
 }
 
+void *stream_in_thread(void *ptr)
+{
+  if (pipe == NULL) {
+    return 0;
+  }
+  image im = buff[(buff_index + 1) % 3];
+
+  unsigned char pipeBuffer[im.w * im.h * im.c];
+
+  // Loop to convert image to bgr buffer
+  for(unsigned int y = 0; y < im.h; ++y){
+      for(unsigned int x = 0; x < im.w; ++x){
+          for(unsigned int c= 0; c < im.c; ++c){
+              float val = im.data[c*im.h*im.w + y*im.w + x];
+              pipeBuffer[y*im.w*im.c + x*im.c + c] = (unsigned char)(val*255);
+          }
+      }
+  }
+  fwrite(pipeBuffer, sizeof(unsigned char), im.w*im.h*im.c, pipe);
+}
+
 void *display_loop(void *ptr)
 {
     while(1){
@@ -232,6 +254,17 @@ void demo(char *cfgfile, char *weightfile, float thresh, int cam_index, const ch
 
     demo_time = what_time_is_it_now();
 
+    // Create pipe to ffmpeg
+    if (prefix) {
+      char command[256];
+      snprintf(command, sizeof(command), "/usr/bin/ffmpeg -f rawvideo -pix_fmt rgb24 -video_size 1280x720 -framerate 30 -i - -f flv %s", prefix);
+      pipe = popen(command, "w");
+      if (pipe == NULL) {
+        perror("Unable to start rebroadcasting");
+        exit(-1);
+      }
+    }
+
     while(!demo_done){
         buff_index = (buff_index + 1) %3;
         if(pthread_create(&fetch_thread, 0, fetch_in_thread, 0)) error("Thread creation failed");
@@ -241,14 +274,16 @@ void demo(char *cfgfile, char *weightfile, float thresh, int cam_index, const ch
             demo_time = what_time_is_it_now();
             display_in_thread(0);
         }else{
-            char name[256];
-            sprintf(name, "%s_%08d", prefix, count);
-            save_image(buff[(buff_index + 1)%3], name);
+            // char name[256];
+            // sprintf(name, "%s_%08d", prefix, count);
+            // save_image(buff[(buff_index + 1)%3], name);
+            stream_in_thread(0);
         }
         pthread_join(fetch_thread, 0);
         pthread_join(detect_thread, 0);
         ++count;
     }
+    pclose(pipe);
 }
 
 /*
