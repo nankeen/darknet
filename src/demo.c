@@ -176,20 +176,20 @@ void *stream_in_thread(void *ptr)
   if (pipe == NULL) {
     return 0;
   }
-  image im = buff[(buff_index + 1) % 3];
+  image *im = &buff[(buff_index + 1) % 3];
 
-  unsigned char pipeBuffer[im.w * im.h * im.c];
+  unsigned char pipeBuffer[im->w * im->h * im->c];
 
   // Loop to convert image to bgr buffer
-  for(unsigned int y = 0; y < im.h; ++y){
-      for(unsigned int x = 0; x < im.w; ++x){
-          for(unsigned int c= 0; c < im.c; ++c){
-              float val = im.data[c*im.h*im.w + y*im.w + x];
-              pipeBuffer[y*im.w*im.c + x*im.c + c] = (unsigned char)(val*255);
+  for(unsigned int y = 0; y < im->h; ++y){
+      for(unsigned int x = 0; x < im->w; ++x){
+          for(unsigned int c= 0; c < im->c; ++c){
+              float val = im->data[c*im->h*im->w + y*im->w + x];
+              pipeBuffer[y*im->w*im->c + x*im->c + c] = (unsigned char)(val*255);
           }
       }
   }
-  fwrite(pipeBuffer, sizeof(unsigned char), im.w*im.h*im.c, pipe);
+  fwrite(pipeBuffer, sizeof(unsigned char), im->w*im->h*im->c, pipe);
   return 0;
 }
 
@@ -258,7 +258,7 @@ void demo(char *cfgfile, char *weightfile, float thresh, int cam_index, const ch
     // Create pipe to ffmpeg
     if (prefix) {
       char command[256];
-      snprintf(command, sizeof(command), "/usr/bin/ffmpeg -f rawvideo -pix_fmt rgb24 -video_size 1280x720 -framerate 30 -i - -f flv rtmp://localhost/processed/%s", prefix);
+      snprintf(command, sizeof(command), "/usr/bin/ffmpeg -f rawvideo -pix_fmt rgb24 -video_size %dx%d -framerate 30 -i - -f flv rtmp://localhost/processed/%s", buff[0].w, buff[0].h, prefix);
       pipe = popen(command, "w");
       if (pipe == NULL) {
         perror("Unable to start rebroadcasting");
